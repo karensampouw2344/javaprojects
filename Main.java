@@ -1,198 +1,221 @@
 package main;
+
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import javafx.application.Application;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.layout.*;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import model.Student;
-
-import java.sql.*;
+import util.Connect;
 
 public class Main extends Application {
 
-    private TableView<Student> tableView;
-    private TextField nameField, ageField, gradeField;
-    private ObservableList<Student> studentList;
-    private Connection connection;
+    private VBox vbox;
+    private TableView<Student> table;
+    private TextField nameField, ageField, addressField, ipkField;
+    private Button addButton, updateButton, deleteButton;
+
+    private Connect connect = Connect.getInstance();
+    private ArrayList<Student> students = new ArrayList<>();
+    private Integer tempId = null;
 
     @Override
-    public void start(Stage stage) {
-        try {
-            // Establishing the database connection
-            connection = DriverManager.getConnection("jdbc:yourdatabaseurl", "username", "password");
+    public void start(Stage primaryStage) {
+        initComponents();
+        setupEventHandlers();
+        refreshTable();
 
-            studentList = FXCollections.observableArrayList(getAllStudents());
+        Scene scene = new Scene(vbox, 480, 640);
+        primaryStage.setScene(scene);
+        primaryStage.setTitle("Student Management");
+        primaryStage.show();
+    }
 
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return;
-        }
+    @SuppressWarnings("unchecked")
+    private void initComponents() {
+        vbox = new VBox(10);
+        vbox.setAlignment(Pos.CENTER);
 
-        stage.setTitle("Student Management");
+        // Table Initialization
+        table = new TableView<>();
 
-        // Labels and TextFields
-        Label nameLabel = new Label("Name");
+        TableColumn<Student, String> nameColumn = new TableColumn<>("Name");
+        nameColumn.setCellValueFactory(new PropertyValueFactory<>("name"));
+
+        TableColumn<Student, Integer> ageColumn = new TableColumn<>("Age");
+        ageColumn.setCellValueFactory(new PropertyValueFactory<>("age"));
+
+        TableColumn<Student, String> addressColumn = new TableColumn<>("Address");
+        addressColumn.setCellValueFactory(new PropertyValueFactory<>("address"));
+
+        TableColumn<Student, Double> ipkColumn = new TableColumn<>("IPK");
+        ipkColumn.setCellValueFactory(new PropertyValueFactory<>("ipk"));
+
+        table.getColumns().addAll(nameColumn, ageColumn, addressColumn, ipkColumn);
+
+        // Input Fields
         nameField = new TextField();
-        Label ageLabel = new Label("Age");
+        nameField.setPromptText("Name");
+
         ageField = new TextField();
-        Label gradeLabel = new Label("Grade");
-        gradeField = new TextField();
+        ageField.setPromptText("Age");
+
+        addressField = new TextField();
+        addressField.setPromptText("Address");
+
+        ipkField = new TextField();
+        ipkField.setPromptText("IPK");
+
+        FlowPane inputPane = new FlowPane(10, 10, nameField, ageField, addressField, ipkField);
+        inputPane.setAlignment(Pos.CENTER);
 
         // Buttons
-        Button addButton = new Button("Add Student");
-        Button updateButton = new Button("Update Student");
-        Button deleteButton = new Button("Delete Student");
+        addButton = new Button("Add");
+        updateButton = new Button("Update");
+        deleteButton = new Button("Delete");
 
-        // Set actions for buttons
-        addButton.setOnAction(e -> addStudent());
-        updateButton.setOnAction(e -> updateStudent());
-        deleteButton.setOnAction(e -> deleteStudent());
+        FlowPane buttonPane = new FlowPane(10, 10, addButton, updateButton, deleteButton);
+        buttonPane.setAlignment(Pos.CENTER);
 
-        // TableView setup
-        tableView = new TableView<>();
-
-        // Creating columns for TableView
-        TableColumn<Student, String> nameColumn = new TableColumn<>("Name");
-        TableColumn<Student, Integer> ageColumn = new TableColumn<>("Age");
-        TableColumn<Student, String> gradeColumn = new TableColumn<>("Grade");
-
-        // Using PropertyValueFactory to bind columns with Student properties
-        nameColumn.setCellValueFactory(new PropertyValueFactory<>("name"));
-        ageColumn.setCellValueFactory(new PropertyValueFactory<>("age"));
-        gradeColumn.setCellValueFactory(new PropertyValueFactory<>("grade"));
-
-        // Adding columns to TableView
-        tableView.getColumns().add(nameColumn);
-        tableView.getColumns().add(ageColumn);
-        tableView.getColumns().add(gradeColumn);
-        tableView.setItems(studentList);
-
-        // Layout setup
-        VBox formLayout = new VBox(10, nameLabel, nameField, ageLabel, ageField, gradeLabel, gradeField, addButton, updateButton, deleteButton);
-        formLayout.setPadding(new Insets(20));
-
-        HBox root = new HBox(20, formLayout, tableView);
-        root.setPadding(new Insets(10));
-
-        Scene scene = new Scene(root, 800, 400);
-        stage.setScene(scene);
-        stage.show();
+        // Add components to VBox
+        vbox.getChildren().addAll(table, inputPane, buttonPane);
     }
 
-    private void addStudent() {
-        String name = nameField.getText();
-        String ageText = ageField.getText();
-        String grade = gradeField.getText();
-
-        if (name.isEmpty() || ageText.isEmpty() || grade.isEmpty()) {
-            showAlert(Alert.AlertType.ERROR, "Error", "All fields must be filled!");
-            return;
-        }
-
-        try {
-            int age = Integer.parseInt(ageText);
-            String sql = "INSERT INTO students (name, age, grade) VALUES (?, ?, ?)";
-            PreparedStatement stmt = connection.prepareStatement(sql);
-            stmt.setString(1, name);
-            stmt.setInt(2, age);
-            stmt.setString(3, grade);
-            stmt.executeUpdate();
-
-            // Adding the new student to the list (retrieving fresh list from the DB)
-            studentList.setAll(getAllStudents());
-            clearFields();
-            showAlert(Alert.AlertType.INFORMATION, "Success", "Student added successfully!");
-        } catch (NumberFormatException | SQLException e) {
-            showAlert(Alert.AlertType.ERROR, "Error", "Invalid input or database error!");
-        }
-    }
-
-    private void updateStudent() {
-        Student selectedStudent = tableView.getSelectionModel().getSelectedItem();
-        if (selectedStudent != null) {
-            String name = nameField.getText();
-            String ageText = ageField.getText();
-            String grade = gradeField.getText();
-
-            if (name.isEmpty() || ageText.isEmpty() || grade.isEmpty()) {
-                showAlert(Alert.AlertType.ERROR, "Error", "All fields must be filled!");
-                return;
-            }
-
+    private void setupEventHandlers() {
+        addButton.setOnAction(event -> {
             try {
-                int age = Integer.parseInt(ageText);
-                String sql = "UPDATE students SET name = ?, age = ?, grade = ? WHERE id = ?";
-                PreparedStatement stmt = connection.prepareStatement(sql);
-                stmt.setString(1, name);
-                stmt.setInt(2, age);
-                stmt.setString(3, grade);
-                stmt.setInt(4, selectedStudent.getId());
-                stmt.executeUpdate();
+                String name = nameField.getText();
+                int age = Integer.parseInt(ageField.getText());
+                String address = addressField.getText();
+                double ipk = Double.parseDouble(ipkField.getText());
 
-                // Refresh the table data
-                studentList.setAll(getAllStudents());
+                addData(name, age, address, ipk);
+                refreshTable();
                 clearFields();
-                showAlert(Alert.AlertType.INFORMATION, "Success", "Student updated successfully!");
-            } catch (NumberFormatException | SQLException e) {
-                showAlert(Alert.AlertType.ERROR, "Error", "Invalid input or database error!");
+            } catch (NumberFormatException e) {
+                showAlert("Invalid Input", "Please enter valid values for Age and IPK.");
             }
-        } else {
-            showAlert(Alert.AlertType.ERROR, "Error", "Please select a student to update.");
-        }
+        });
+
+        table.setOnMouseClicked(event -> {
+            Student selected = table.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                tempId = selected.getId();
+                nameField.setText(selected.getName());
+                ageField.setText(String.valueOf(selected.getAge()));
+                addressField.setText(selected.getAddress());
+                ipkField.setText(String.valueOf(selected.getIpk()));
+            }
+        });
+
+        updateButton.setOnAction(event -> {
+            if (tempId != null) {
+                try {
+                    String name = nameField.getText();
+                    int age = Integer.parseInt(ageField.getText());
+                    String address = addressField.getText();
+                    double ipk = Double.parseDouble(ipkField.getText());
+
+                    updateData(tempId, name, age, address, ipk);
+                    refreshTable();
+                    clearFields();
+                } catch (NumberFormatException e) {
+                    showAlert("Invalid Input", "Please enter valid values for Age and IPK.");
+                }
+            } else {
+                showAlert("No Selection", "Please select a row to update.");
+            }
+        });
+
+        deleteButton.setOnAction(event -> {
+            if (tempId != null) {
+                deleteData(tempId);
+                refreshTable();
+                clearFields();
+            } else {
+                showAlert("No Selection", "Please select a row to delete.");
+            }
+        });
     }
 
-    private void deleteStudent() {
-        Student selectedStudent = tableView.getSelectionModel().getSelectedItem();
-        if (selectedStudent != null) {
-            try {
-                String sql = "DELETE FROM students WHERE id = ?";
-                PreparedStatement stmt = connection.prepareStatement(sql);
-                stmt.setInt(1, selectedStudent.getId());
-                stmt.executeUpdate();
-
-                // Refresh the table data
-                studentList.setAll(getAllStudents());
-                clearFields();
-                showAlert(Alert.AlertType.INFORMATION, "Success", "Student deleted successfully!");
-            } catch (SQLException e) {
-                showAlert(Alert.AlertType.ERROR, "Error", "Database error!");
-            }
-        } else {
-            showAlert(Alert.AlertType.ERROR, "Error", "Please select a student to delete.");
-        }
-    }
-
-    private ObservableList<Student> getAllStudents() {
-        ObservableList<Student> students = FXCollections.observableArrayList();
-        try {
-            String sql = "SELECT * FROM students";
-            Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery(sql);
-
-            while (rs.next()) {
-                students.add(new Student(rs.getInt("id"), rs.getString("name"), rs.getInt("age"), rs.getString("grade")));
-            }
-
+    private void addData(String name, int age, String address, double ipk) {
+        String query = "INSERT INTO student (name, age, address, ipk) VALUES (?, ?, ?, ?)";
+        try (PreparedStatement ps = connect.prepareStatement(query)) {
+            ps.setString(1, name);
+            ps.setInt(2, age);
+            ps.setString(3, address);
+            ps.setDouble(4, ipk);
+            ps.executeUpdate();
         } catch (SQLException e) {
-            showAlert(Alert.AlertType.ERROR, "Error", "Database error!");
+            e.printStackTrace();
         }
-        return students;
+    }
+
+    private void updateData(int id, String name, int age, String address, double ipk) {
+        String query = "UPDATE student SET name = ?, age = ?, address = ?, ipk = ? WHERE id = ?";
+        try (PreparedStatement ps = connect.prepareStatement(query)) {
+            ps.setString(1, name);
+            ps.setInt(2, age);
+            ps.setString(3, address);
+            ps.setDouble(4, ipk);
+            ps.setInt(5, id);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void deleteData(int id) {
+        String query = "DELETE FROM student WHERE id = ?";
+        try (PreparedStatement ps = connect.prepareStatement(query)) {
+            ps.setInt(1, id);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void refreshTable() {
+        students.clear();
+        String query = "SELECT * FROM student";
+        connect.rs = connect.execQuery(query);
+
+        try {
+            while (connect.rs.next()) {
+                int id = connect.rs.getInt("id");
+                String name = connect.rs.getString("name");
+                int age = connect.rs.getInt("age");
+                String address = connect.rs.getString("address");
+                double ipk = connect.rs.getDouble("ipk");
+                students.add(new Student(id, name, age, address, ipk));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        ObservableList<Student> studentObs = FXCollections.observableArrayList(students);
+        table.setItems(studentObs);
     }
 
     private void clearFields() {
         nameField.clear();
         ageField.clear();
-        gradeField.clear();
+        addressField.clear();
+        ipkField.clear();
+        tempId = null;
     }
 
-    private void showAlert(Alert.AlertType type, String title, String message) {
-        Alert alert = new Alert(type);
+    private void showAlert(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle(title);
-        alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
     }
@@ -201,4 +224,3 @@ public class Main extends Application {
         launch(args);
     }
 }
-

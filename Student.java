@@ -14,7 +14,11 @@ public class Student {
         this.grade = grade;
     }
 
-    // Getters and Setters
+    public Student(int id2, String name2, int age2, String address, double ipk) {
+		// TODO Auto-generated constructor stub
+	}
+
+	// Getters and Setters
     public int getId() {
         return id;
     }
@@ -46,5 +50,15 @@ public class Student {
     public void setGrade(String grade) {
         this.grade = grade;
     }
+
+	public String getAddress() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	public char[] getIpk() {
+		// TODO Auto-generated method stub
+		return null;
+	}
 }
 
